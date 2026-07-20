@@ -147,7 +147,9 @@ def get_audio_duration(audio_path):
 # ─────────────────────────────────────────────
 
 def split_video(video_path, num_segments, output_dir):
-    """Split video into segments with re-encoding for accurate frame-level cutting."""
+    """Split video into segments using fast copy (instant, no re-encoding).
+    Segment duration may vary slightly due to keyframes, but speed_adjust
+    step corrects this by measuring actual duration."""
     duration = get_video_duration(video_path)
     segment_duration = duration / num_segments
     segments = []
@@ -155,7 +157,7 @@ def split_video(video_path, num_segments, output_dir):
         start_time = i * segment_duration
         output_path = os.path.join(output_dir, f"segment_{i}.mp4")
         cmd = ['ffmpeg', '-y', '-ss', str(start_time), '-t', str(segment_duration),
-               '-i', video_path, '-c:v', 'libx264', '-preset', 'fast', '-c:a', 'aac',
+               '-i', video_path, '-c:v', 'copy', '-c:a', 'copy',
                '-avoid_negative_ts', 'make_zero', output_path]
         subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         segments.append(output_path)
@@ -167,41 +169,28 @@ def split_video(video_path, num_segments, output_dir):
 # ─────────────────────────────────────────────
 
 def speed_adjust_segment(index, video_segment, audio_path, adjusted_dir):
-    """Speed-adjust a video segment to match its TTS audio duration.
-    Returns the path to the adjusted segment (video + audio combined).
+    """Speed-adjust VIDEO ONLY to match TTS audio duration.
+    TTS audio is kept at original speed (no atempo).
+    Returns the path to the adjusted segment (video+audio combined).
     Cleans up the original segment after success."""
     audio_duration = get_audio_duration(audio_path)
     orig_duration = get_video_duration(video_segment)
     output_path = os.path.join(adjusted_dir, f"adjusted_{index}.mp4")
 
     if abs(audio_duration - orig_duration) < 0.5:
-        # No speed adjustment needed, just copy
-        cmd = ['ffmpeg', '-y', '-i', video_segment, '-c', 'copy', output_path]
+        # No speed adjustment needed, just copy video+audio
+        cmd = ['ffmpeg', '-y', '-i', video_segment,
+               '-i', audio_path, '-c:v', 'copy', '-c:a', 'copy',
+               '-shortest', output_path]
     else:
         speed_factor = audio_duration / orig_duration
-        filter_complex = (
-            f"[0:v]setpts=PTS*{speed_factor}[v];"
-            f"[0:a]atempo={1/speed_factor}[a];"
-            f"[v][a]concat=n=1:v=1:a=1"
-        )
-        # For very large speed factors, chain atempo (max 2.0 per chain)
-        if speed_factor > 2.0:
-            chains = []
-            remaining = speed_factor
-            while remaining > 2.0:
-                chains.append("atempo=2.0")
-                remaining /= 2.0
-            chains.append(f"atempo={remaining}")
-            atempo_str = ",".join(chains)
-            filter_complex = (
-                f"[0:v]setpts=PTS*{speed_factor}[v];"
-                f"[0:a]{atempo_str}[a];"
-                f"[v][a]concat=n=1:v=1:a=1"
-            )
+        # Video speed adjust only (setpts), no audio speed change
+        filter_complex = f"[0:v]setpts=PTS*{speed_factor}[v];[v][1:a]concat=n=1:v=1:a=1"
 
-        cmd = ['ffmpeg', '-y', '-i', video_segment,
+        cmd = ['ffmpeg', '-y', '-i', video_segment, '-i', audio_path,
                '-filter_complex', filter_complex, '-map', '[v]', '-map', '[a]',
-               '-c:v', 'libx264', '-preset', 'fast', '-c:a', 'aac', output_path]
+               '-c:v', 'libx264', '-preset', 'fast', '-c:a', 'aac',
+               '-shortest', output_path]
 
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode == 0 and os.path.exists(output_path):
@@ -240,7 +229,7 @@ def merge_speed_adjusted_segments(adjusted_segments, output_path):
 # ─────────────────────────────────────────────
 
 def split_into_chunks(merged_path, chunk_duration, output_dir):
-    """Split merged video into chunks for memory-safe processing."""
+    """Split merged video into chunks using fast copy (instant, no re-encoding)."""
     duration = get_video_duration(merged_path)
     chunks = []
     num_chunks = math.ceil(duration / chunk_duration)
@@ -249,7 +238,7 @@ def split_into_chunks(merged_path, chunk_duration, output_dir):
         remaining = min(chunk_duration, duration - start_time)
         output_path = os.path.join(output_dir, f"chunk_{i}.mp4")
         cmd = ['ffmpeg', '-y', '-ss', str(start_time), '-t', str(remaining),
-               '-i', merged_path, '-c:v', 'libx264', '-preset', 'fast', '-c:a', 'aac',
+               '-i', merged_path, '-c:v', 'copy', '-c:a', 'copy',
                '-avoid_negative_ts', 'make_zero', output_path]
         subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         chunks.append(output_path)

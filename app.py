@@ -299,15 +299,13 @@ def build_cycle_filter(video_path, audio_path, chunk_duration,
                        freeze1_zoom, freeze2_zoom, zoom_dur):
     """Build FFmpeg filter complex for cycle repeat on a chunk."""
     width, height = get_video_resolution(video_path)
-    fps = 30
+    fps = 24
     cycle_duration = play_dur + freeze1_dur + freeze2_dur
     num_cycles = math.ceil(chunk_duration / cycle_duration)
 
-    if width > 1280:
-        height = int(height * (1280 / width))
-        width = 1280
-
-    res_str = f"{width}x{height}"
+    # Force 720p for performance and RAM safety
+    width, height = 1280, 720
+    res_str = "1280x720"
 
     zoom_frames = max(int(zoom_dur * fps), 1)
 
@@ -397,7 +395,7 @@ def process_chunk_with_retry(index, chunk_path, chunk_duration,
             cmd = ['ffmpeg', '-y', '-i', chunk_path, '-i', audio_path,
                    '-filter_complex', filter_complex, '-map', '[v]',
                    '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac',
-                   '-shortest', output_path]
+                   '-r', '24', '-s', '1280x720', '-shortest', output_path]
             result = subprocess.run(cmd, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, text=True)
 

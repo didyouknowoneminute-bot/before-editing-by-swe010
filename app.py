@@ -229,19 +229,24 @@ def speed_adjust_segment(index, video_segment, audio_path, adjusted_dir):
     orig_duration = get_video_duration(video_segment)
     output_path = os.path.join(adjusted_dir, f"adjusted_{index}.mp4")
 
-    if abs(audio_duration - orig_duration) < 0.5:
-        # No speed adjustment needed, just copy video+audio
-        cmd = ['ffmpeg', '-y', '-i', video_segment,
-               '-i', audio_path, '-c:v', 'copy', '-c:a', 'copy',
-               '-shortest', output_path]
-    else:
-        speed_factor = audio_duration / orig_duration
-        filter_complex = f"[0:v]setpts=PTS*{speed_factor}[v_speed];[v_speed][1:a]concat=n=1:v=1:a=1[v_concat][a_concat]"
+    # Target video duration is audio_duration + 0.3s padding
+    # to ensure audio is never truncated.
+    target_video_duration = audio_duration + 0.3
+    speed_factor = target_video_duration / orig_duration
 
-        cmd = ['ffmpeg', '-y', '-i', video_segment, '-i', audio_path,
-               '-filter_complex', filter_complex, '-map', '[v_concat]', '-map', '[a_concat]',
-               '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac',
-               output_path]
+    # Use a simpler filter complex that only touches video PTS.
+    # We map audio directly to ensure it's not filtered or truncated.
+    cmd = [
+        'ffmpeg', '-y',
+        '-i', video_segment,
+        '-i', audio_path,
+        '-filter_complex', f"[0:v]setpts={speed_factor}*PTS[v]",
+        '-map', '[v]',
+        '-map', '1:a',
+        '-c:v', 'libx264', '-preset', 'ultrafast',
+        '-c:a', 'aac',
+        output_path
+    ]
 
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode == 0 and os.path.exists(output_path):

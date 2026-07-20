@@ -298,12 +298,11 @@ def build_cycle_filter(video_path, audio_path, chunk_duration,
                        play_dur, freeze1_dur, freeze2_dur,
                        freeze1_zoom, freeze2_zoom, zoom_dur):
     """Build FFmpeg filter complex for cycle repeat on a chunk."""
-    width, height = get_video_resolution(video_path)
     fps = 24
     cycle_duration = play_dur + freeze1_dur + freeze2_dur
     num_cycles = math.ceil(chunk_duration / cycle_duration)
 
-    # Force 720p for performance and RAM safety
+    # Video is already pre-processed to 1280x720 24fps
     width, height = 1280, 720
     res_str = "1280x720"
 
@@ -311,12 +310,10 @@ def build_cycle_filter(video_path, audio_path, chunk_duration,
 
     def make_zoom_filter(duration_frames, zoom_type):
         if zoom_type == "Zoom In":
-            return (f"scale={width}:{height},setsar=1,"
-                    f"zoompan=z='min(1+0.15*on/{duration_frames},1.15)':"
+            return (f"zoompan=z='min(1+0.15*on/{duration_frames},1.15)':"
                     f"d={duration_frames}:s={res_str}:fps={fps}")
         elif zoom_type == "Zoom Out":
-            return (f"scale={width}:{height},setsar=1,"
-                    f"zoompan=z='max(1.15-0.15*on/{duration_frames},1.0)':"
+            return (f"zoompan=z='max(1.15-0.15*on/{duration_frames},1.0)':"
                     f"d={duration_frames}:s={res_str}:fps={fps}")
         return None
 
@@ -395,7 +392,7 @@ def process_chunk_with_retry(index, chunk_path, chunk_duration,
             cmd = ['ffmpeg', '-y', '-i', chunk_path, '-i', audio_path,
                    '-filter_complex', filter_complex, '-map', '[v]',
                    '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac',
-                   '-r', '24', '-s', '1280x720', '-shortest', output_path]
+                   '-shortest', output_path]
             result = subprocess.run(cmd, stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, text=True)
 
@@ -523,28 +520,36 @@ def main():
             with st.status("🚀 Processing...", expanded=True) as status:
 
                 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                # STEP 1+2: TTS + Split Video (PARALLEL)
+                # STEP 1+2: Pre-process Video + TTS + Split (PARALLEL)
                 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                step_status_placeholder.markdown("**Step 1/5:** Generating TTS audio & splitting video...")
+                step_status_placeholder.markdown("**Step 1/5:** Pre-processing video & generating TTS...")
                 progress_detail = st.empty()
                 step_start = time.time()
 
-                # Generate TTS in parallel with interval progress
+                # Pre-process video to 720p 24fps for optimization
+                optimized_video_path = os.path.join(video_dir, "optimized_720p_24fps.mp4")
+                progress_detail.markdown("⚙️ Optimizing video to 720p 24fps...")
+                cmd = ['ffmpeg', '-y', '-i', video_path, '-vf', 'scale=1280:720', '-r', '24', 
+                       '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', optimized_video_path]
+                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                
+                # Delete original high-res video immediately to save space/RAM
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+                video_path = optimized_video_path
+
+                # Generate TTS in parallel
                 progress_detail.markdown(f"🔊 Generating {num_paragraphs} TTS files in parallel...")
                 asyncio.run(generate_all_tts(paragraphs, audio_dir, voice_id, final_speed, final_pitch))
                 progress_detail.markdown(f"✅ TTS complete ({num_paragraphs}/{num_paragraphs})")
 
-                # Split video
+                # Split video (using optimized video)
                 progress_detail.markdown(f"✂️ Splitting video into {num_paragraphs} segments...")
                 video_segments, _ = split_video(video_path, num_paragraphs, video_dir)
                 progress_detail.markdown(f"✅ Split complete ({num_paragraphs} segments)")
 
                 step12_elapsed = time.time() - step_start
                 progress_bar.progress(0.15)
-
-                # Delete original uploaded video
-                if os.path.exists(video_path):
-                    os.remove(video_path)
 
                 progress_detail.markdown(f"✅ TTS + Split complete ({step12_elapsed:.1f}s)")
 

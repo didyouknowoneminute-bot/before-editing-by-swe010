@@ -185,10 +185,10 @@ def speed_adjust_segment(index, video_segment, audio_path, adjusted_dir):
     else:
         speed_factor = audio_duration / orig_duration
         # Video speed adjust only (setpts), no audio speed change
-        filter_complex = f"[0:v]setpts=PTS*{speed_factor}[v];[v][1:a]concat=n=1:v=1:a=1"
+        filter_complex = f"[0:v]setpts=PTS*{speed_factor}[vout];[vout][1:a]concat=n=1:v=1:a=1[aout]"
 
         cmd = ['ffmpeg', '-y', '-i', video_segment, '-i', audio_path,
-               '-filter_complex', filter_complex, '-map', '[v]', '-map', '[a]',
+               '-filter_complex', filter_complex, '-map', '[vout]', '-map', '[aout]',
                '-c:v', 'libx264', '-preset', 'fast', '-c:a', 'aac',
                '-shortest', output_path]
 

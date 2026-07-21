@@ -318,19 +318,24 @@ def build_cycle_filter(video_path, audio_path, chunk_duration,
     width, height = 1280, 720
     res_str = "1280x720"
 
-    zoom_frames = max(int(zoom_dur * fps), 1)
-
-    def make_zoom_filter(duration_frames, zoom_type):
+    def make_zoom_filter(zoom_dur, total_dur, zoom_type):
+        total_frames = max(int(total_dur * fps), 1)
+        zoom_frames = max(int(zoom_dur * fps), 1)
+        # Cap zoom_frames at total_frames to avoid overflow
+        z_frames = min(zoom_frames, total_frames)
+        
         if zoom_type == "Zoom In":
-            return (f"zoompan=z='min(1+0.15*on/{duration_frames},1.15)':"
-                    f"d={duration_frames}:s={res_str}:fps={fps}")
+            # Zoom from 1.0 to 1.15 over z_frames, then stay at 1.15
+            return (f"zoompan=z='if(lte(on,{z_frames}),min(1+0.15*on/{z_frames},1.15),1.15)':"
+                    f"d={total_frames}:s={res_str}:fps={fps}")
         elif zoom_type == "Zoom Out":
-            return (f"zoompan=z='max(1.15-0.15*on/{duration_frames},1.0)':"
-                    f"d={duration_frames}:s={res_str}:fps={fps}")
+            # Zoom from 1.15 to 1.0 over z_frames, then stay at 1.0
+            return (f"zoompan=z='if(lte(on,{z_frames}),max(1.15-0.15*on/{z_frames},1.0),1.0)':"
+                    f"d={total_frames}:s={res_str}:fps={fps}")
         return None
 
-    f1_z = make_zoom_filter(zoom_frames, freeze1_zoom) if freeze1_zoom != "None" else None
-    f2_z = make_zoom_filter(zoom_frames, freeze2_zoom) if freeze2_zoom != "None" else None
+    f1_z = make_zoom_filter(zoom_dur, freeze1_dur, freeze1_zoom) if freeze1_zoom != "None" else None
+    f2_z = make_zoom_filter(zoom_dur, freeze2_dur, freeze2_zoom) if freeze2_zoom != "None" else None
 
     filter_parts = []
     concat_inputs = []
@@ -372,11 +377,9 @@ def build_cycle_filter(video_path, audio_path, chunk_duration,
                     f"trim=duration={freeze2_dur}[vf2_{i}];")
             concat_inputs.append(f"[vf2_{i}]")
 
-    # Concatenate video parts, then combine with audio
+    # Concatenate video parts into a single video stream [v]
     filter_parts.append(
-        f"{''.join(concat_inputs)}concat=n={len(concat_inputs)}:v=1:a=0[vcomb];")
-    filter_parts.append(
-        f"[vcomb][1:a]concat=n=1:v=1:a=1,trim=duration={chunk_duration}[v]")
+        f"{''.join(concat_inputs)}concat=n={len(concat_inputs)}:v=1:a=0[v]")
 
     return ''.join(filter_parts)
 
@@ -401,8 +404,10 @@ def process_chunk_with_retry(index, chunk_path, chunk_duration,
                 freeze1_zoom, freeze2_zoom, zoom_dur
             )
 
+            # Map both the filtered video [v] and the original audio (1:a)
             cmd = ['ffmpeg', '-y', '-i', chunk_path, '-i', audio_path,
-                   '-filter_complex', filter_complex, '-map', '[v]',
+                   '-filter_complex', filter_complex, 
+                   '-map', '[v]', '-map', '1:a',
                    '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac',
                    '-shortest', output_path]
             result = subprocess.run(cmd, stdout=subprocess.PIPE,

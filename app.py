@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import os
 import subprocess
 import math
@@ -383,12 +382,7 @@ def merge_videos(video_list, output_path):
 def main():
     st.title("🎬 Video & Text Processor with TTS")
 
-    # ─────────────────────────────────────────────
-    # Slider Custom Component Declaration
-    # ─────────────────────────────────────────────
-    slider_component = components.declare_component(
-        "slider_component", path=os.path.join(os.path.dirname(__file__), "slider_component")
-    )
+
 
     with st.sidebar:
         st.header("⚙️ Settings")
@@ -409,22 +403,11 @@ def main():
         st.caption(f"📊 Preset → Speed: {preset_speed}%, Pitch: {preset_pitch}Hz")
 
         # ─────────────────────────────────────────────
-        # Custom Smooth Slider Component (HTML/CSS/JS)
+        # Speed & Pitch Sliders
         # ─────────────────────────────────────────────
         st.markdown("**🎛️ Adjust Speed & Pitch**")
-        slider_result = slider_component(
-            speed=preset_speed,
-            pitch=preset_pitch,
-            key="speed_pitch_slider"
-        )
-
-        # Use slider values if available, otherwise fall back to preset values
-        if slider_result and isinstance(slider_result, dict):
-            final_speed = slider_result.get("speed", preset_speed)
-            final_pitch = slider_result.get("pitch", preset_pitch)
-        else:
-            final_speed = preset_speed
-            final_pitch = preset_pitch
+        final_speed = st.slider("Speed (%)", min_value=-50, max_value=100, value=preset_speed, step=1)
+        final_pitch = st.slider("Pitch (Hz)", min_value=-50, max_value=100, value=preset_pitch, step=1)
 
         st.caption(f"📊 Final → Speed: {final_speed}%, Pitch: {final_pitch}Hz")
         st.markdown("---")

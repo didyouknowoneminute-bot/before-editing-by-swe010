@@ -636,6 +636,9 @@ def main():
             gc.collect()
             
             st.session_state.processing_active = False
+            st.session_state.output_video = output_video
+            st.session_state.srt_path = srt_path
+            st.session_state.dirs_path = dirs
             status.update(label="✅ Complete!", state="complete")
             st.write("✅ Processing complete. Download your video below.")
 
@@ -649,29 +652,35 @@ def main():
         step_status_placeholder.markdown("**✅ All steps complete!**")
         st.success(f"🎉 Completed in **{format_time(total_elapsed)}**")
 
-        if os.path.exists(output_video):
-            col_v, col_s = st.columns(2)
-            with col_v:
+    # Show download buttons even after rerun (outside the processing block)
+    if st.session_state.get("output_video") and os.path.exists(st.session_state.get("output_video", "")):
+        col_v, col_s = st.columns(2)
+        with col_v:
+            st.download_button(
+                "📥 Download Final Video",
+                data=open(st.session_state.output_video, "rb"),
+                file_name="final_output.mp4",
+                mime="video/mp4"
+            )
+        with col_s:
+            srt_file = st.session_state.get("srt_path", "")
+            if os.path.exists(srt_file):
                 st.download_button(
-                    "📥 Download Final Video",
-                    data=open(output_video, "rb"),
-                    file_name="final_output.mp4",
-                    mime="video/mp4"
+                    "📝 Download SRT Subtitles",
+                    data=open(srt_file, "r", encoding="utf-8"),
+                    file_name="final_output.srt",
+                    mime="text/plain"
                 )
-            with col_s:
-                if os.path.exists(srt_path):
-                    st.download_button(
-                        "📝 Download SRT Subtitles",
-                        data=open(srt_path, "r", encoding="utf-8"),
-                        file_name="final_output.srt",
-                        mime="text/plain"
-                    )
 
-        if st.button("🧹 Cleanup All Files"):
-            shutil.rmtree(dirs["temp"], ignore_errors=True)
-            if os.path.exists(output_video):
-                os.remove(output_video)
-            st.session_state.processing_active = False
-            st.rerun()
+    if st.button("🧹 Cleanup All Files"):
+        if st.session_state.get("dirs_path"):
+            shutil.rmtree(st.session_state.dirs_path["temp"], ignore_errors=True)
+        if st.session_state.get("output_video") and os.path.exists(st.session_state.output_video):
+            os.remove(st.session_state.output_video)
+        st.session_state.processing_active = False
+        st.session_state.output_video = None
+        st.session_state.srt_path = None
+        st.session_state.dirs_path = None
+        st.rerun()
 if __name__ == "__main__":
     main()

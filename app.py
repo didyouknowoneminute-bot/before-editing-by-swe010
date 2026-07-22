@@ -248,21 +248,6 @@ def merge_speed_adjusted_segments(adjusted_segments, output_path):
             os.remove(seg)
 
 
-# ─────────────────────────────────────────────
-# Step 4: Split one chunk (for pipeline)
-# ─────────────────────────────────────────────
-
-def split_single_chunk(index, merged_path, chunk_duration, total_duration, output_dir):
-    """Split a single chunk from merged video using fast copy (instant)."""
-    start_time = index * chunk_duration
-    remaining = min(chunk_duration, total_duration - start_time)
-    output_path = os.path.join(output_dir, f"chunk_{index}.mp4")
-    cmd = ['ffmpeg', '-y', '-ss', str(start_time), '-t', str(remaining),
-           '-i', merged_path, '-c:v', 'copy', '-c:a', 'copy',
-           '-avoid_negative_ts', 'make_zero', output_path]
-    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return output_path, remaining
-
 
 # ─────────────────────────────────────────────
 # Step 5: Apply cycle repeat to a single chunk
@@ -416,14 +401,6 @@ def main():
         st.caption(f"📊 Speed: {final_speed}%, Pitch: {final_pitch}Hz")
         st.markdown("---")
         play_duration = st.slider("▶️ Play Duration (s)", 1, 5, 3)
-        col3, col4 = st.columns(2)
-        with col3:
-            freeze1_duration = st.slider("❄️ Freeze 1 (s)", 0, 2, 1)
-            freeze1_zoom = st.selectbox("Zoom 1", ["None", "Zoom In", "Zoom Out"])
-        with col4:
-            freeze2_duration = st.slider("❄️ Freeze 2 (s)", 0, 2, 1)
-            freeze2_zoom = st.selectbox("Zoom 2", ["None", "Zoom In", "Zoom Out"])
-        zoom_duration = st.slider("🔍 Zoom Duration (s)", 0.1, 1.0, 0.5)
         st.markdown("---")
         text_input = st.text_area("📝 Enter Text", height=200)
         if text_input:
@@ -434,20 +411,15 @@ def main():
     # Initialize session state for tracking
     if 'processing_active' not in st.session_state:
         st.session_state.processing_active = False
-    if 'step3_done' not in st.session_state:
-        st.session_state.step3_done = False
-    if 'continue_clicked' not in st.session_state:
-        st.session_state.continue_clicked = False
 
     # Start button logic
     if st.button("🚀 Start Processing") and not st.session_state.processing_active:
+
         if not text_input or not video_file:
             st.error("❌ Provide text and video.")
             return
         
         st.session_state.processing_active = True
-        st.session_state.step3_done = False
-        st.session_state.continue_clicked = False
         
         # Save inputs to session state
         st.session_state.inputs = {
@@ -456,11 +428,6 @@ def main():
             "final_speed": final_speed,
             "final_pitch": final_pitch,
             "play_duration": play_duration,
-            "freeze1_duration": freeze1_duration,
-            "freeze1_zoom": freeze1_zoom,
-            "freeze2_duration": freeze2_duration,
-            "freeze2_zoom": freeze2_zoom,
-            "zoom_duration": zoom_duration
         }
 
         # Setup temp directories
@@ -473,8 +440,6 @@ def main():
             "audio": os.path.join(temp_dir, "audio"),
             "video": os.path.join(temp_dir, "video"),
             "adjusted": os.path.join(temp_dir, "adjusted"),
-            "chunks": os.path.join(temp_dir, "chunks"),
-            "final": os.path.join(temp_dir, "final_chunks")
         }
         for d in st.session_state.dirs.values():
             os.makedirs(d, exist_ok=True)
@@ -485,208 +450,110 @@ def main():
         with open(video_path, "wb") as f:
             while chunk := video_file.read(8192):
                 f.write(chunk)
-        
-        st.session_state.paragraphs = count_paragraphs(text_input)
-        st.session_state.total_start = time.time()
-        st.rerun()
 
-    # Main Processing Block
-    if st.session_state.processing_active:
-        # Restore variables
-        inputs = st.session_state.inputs
-        dirs = st.session_state.dirs
-        video_path = st.session_state.video_path
-        paragraphs = st.session_state.paragraphs
-        num_paragraphs = len(paragraphs)
-        total_start = st.session_state.total_start
-        
-        timer_placeholder = st.empty()
-        progress_bar = st.progress(0)
-        step_status_placeholder = st.empty()
+        # Display status and progress
+        status = st.status("Processing video...", expanded=True)
+        status.write("Starting video processing...")
+        progress_bar = status.progress(0, text="Initializing...")
+        step_status_placeholder = status.empty()
+        progress_detail = status.empty()
+        timer_placeholder = status.empty()
+
+        total_start = time.time()
 
         try:
-            with st.status("🚀 Processing...", expanded=True) as status:
-                if not st.session_state.step3_done:
-                    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    # STEP 1+2: Pre-process Video + TTS + Split (PARALLEL)
-                    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    step_status_placeholder.markdown("**Step 1/5:** Pre-processing video & generating TTS...")
-                    progress_detail = st.empty()
-                    step_start = time.time()
-
-                    # Pre-process video: cap at 900p, convert to 24fps
-                    orig_width, orig_height = get_video_resolution(video_path)
-                    needs_preprocess = (orig_width > 1600) or (orig_height > 900)
-
-                    if needs_preprocess:
-                        optimized_video_path = os.path.join(dirs["video"], "optimized_900p_24fps.mp4")
-                        progress_detail.markdown(f"⚙️ Downscaling to 900p + 24fps (Original: {orig_width}×{orig_height})...")
-                        cmd = ['ffmpeg', '-y', '-i', video_path, '-vf', "scale='if(gt(iw,ih),1600,-2)':'if(gt(iw,ih),-2,1600)':force_original_aspect_ratio=decrease",
-                               '-r', '24', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', optimized_video_path]
-                        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    else:
-                        optimized_video_path = os.path.join(dirs["video"], "optimized_24fps.mp4")
-                        progress_detail.markdown(f"⚙️ Converting to 24fps (Resolution: {orig_width}×{orig_height})...")
-                        cmd = ['ffmpeg', '-y', '-i', video_path, '-r', '24',
-                               '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', optimized_video_path]
-                        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-                    if os.path.exists(video_path):
-                        os.remove(video_path)
-                    video_path = optimized_video_path
-                    st.session_state.video_path = video_path
-
-                    progress_detail.markdown(f"🔊 Generating {num_paragraphs} TTS files in parallel...")
-                    asyncio.run(generate_all_tts(paragraphs, dirs["audio"], inputs["voice_id"], inputs["final_speed"], inputs["final_pitch"]))
-                    progress_detail.markdown(f"✅ TTS complete ({num_paragraphs}/{num_paragraphs})")
-
-                    progress_detail.markdown(f"✂️ Splitting video into {num_paragraphs} segments...")
-                    video_segments, _ = split_video(video_path, num_paragraphs, dirs["video"])
-                    progress_detail.markdown(f"✅ Split complete ({num_paragraphs} segments)")
-
-                    step12_elapsed = time.time() - step_start
-                    progress_bar.progress(0.15)
-                    progress_detail.markdown(f"✅ TTS + Split complete ({step12_elapsed:.1f}s)")
-
-                    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    # STEP 3: Speed-adjust each segment
-                    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    step_status_placeholder.markdown(f"**Step 2/5:** Speed-adjusting {num_paragraphs} segments...")
-                    step_start = time.time()
-                    adjusted_segments = [None] * num_paragraphs
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                        futures = {
-                            executor.submit(
-                                speed_adjust_segment,
-                                i, video_segments[i],
-                                os.path.join(dirs["audio"], f"audio_{i}.mp3"),
-                                dirs["adjusted"]
-                            ): i for i in range(num_paragraphs)
-                        }
-                        for future in concurrent.futures.as_completed(futures):
-                            idx = futures[future]
-                            try:
-                                adjusted_segments[idx] = future.result()
-                            except Exception as e:
-                                st.error(f"❌ Speed adjust failed for segment {idx+1}: {e}")
-                            done = sum(1 for x in adjusted_segments if x is not None)
-                            progress_bar.progress(0.15 + 0.30 * done / num_paragraphs)
-                            progress_detail.markdown(f"⚡ Segment {done}/{num_paragraphs} speed adjusted")
-
-                    gc.collect()
-                    step3_elapsed = time.time() - step_start
-                    progress_detail.markdown(f"✅ All {num_paragraphs} segments speed-adjusted ({step3_elapsed:.1f}s)")
-
-                    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    # STEP 4: Merge all speed-adjusted segments
-                    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                    step_status_placeholder.markdown("**Step 3/5:** Merging segments...")
-                    progress_detail.markdown("🔗 Merging segments...")
-                    step_start = time.time()
-                    merged_video = os.path.join(dirs["temp"], "merged_video.mp4")
-                    merge_speed_adjusted_segments(adjusted_segments, merged_video)
-                    progress_bar.progress(0.50)
-                    step4_elapsed = time.time() - step_start
-                    progress_detail.markdown(f"✅ Segments merged ({step4_elapsed:.1f}s)")
-                    gc.collect()
-                    
-                    st.session_state.merged_video = merged_video
-                    st.session_state.step3_done = True
-                    st.rerun()
-
-            if st.session_state.step3_done and not st.session_state.continue_clicked:
-                st.info("⏸️ **Paused after Step 3**")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    if os.path.exists(st.session_state.merged_video):
-                        with open(st.session_state.merged_video, "rb") as f:
-                            st.download_button("📥 Download Before Editing", f, "before_editing.mp4", "video/mp4")
-                with col2:
-                    if st.button("🗑️ Delete & Stop"):
-                        shutil.rmtree(dirs["temp"], ignore_errors=True)
-                        st.session_state.processing_active = False
-                        st.session_state.step3_done = False
-                        st.rerun()
-                with col3:
-                    if st.button("⏩ Continue to Effects"):
-                        st.session_state.continue_clicked = True
-                        st.rerun()
-                st.stop()
+            inputs = st.session_state.inputs
+            dirs = st.session_state.dirs
+            video_path = st.session_state.video_path
+            paragraphs = count_paragraphs(inputs["text"])
+            num_paragraphs = len(paragraphs)
 
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            # STEP 5: Split into chunks + Process
+            # STEP 1+2: Pre-process Video + TTS + Split (PARALLEL)
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            merged_video = st.session_state.merged_video
-            CHUNK_DURATION = 30
-            merged_duration = get_video_duration(merged_video)
-            num_chunks = math.ceil(merged_duration / CHUNK_DURATION)
+            step_status_placeholder.markdown("**Step 1/3:** Pre-processing video & generating TTS...")
+            progress_detail.markdown("Initializing...")
+            step_start = time.time()
 
-            step_status_placeholder.markdown(
-                f"**Step 4/5:** Processing {num_chunks} chunks with effects...")
-            progress_detail.markdown("✂️ Splitting into chunks...")
-            step56_start = time.time()
+            # Pre-process video: cap at 900p, convert to 24fps
+            orig_width, orig_height = get_video_resolution(video_path)
+            needs_preprocess = (orig_width > 1600) or (orig_height > 900) or (get_video_duration(video_path) == 0) # Handle zero duration
 
-            processed_chunks = [None] * num_chunks
-
-            for i in range(num_chunks):
-                start_time = i * CHUNK_DURATION
-                remaining = min(CHUNK_DURATION, merged_duration - start_time)
-                chunk_path = os.path.join(dirs["chunks"], f"chunk_{i}.mp4")
-                cmd = ['ffmpeg', '-y', '-ss', str(start_time), '-t', str(remaining),
-                       '-i', merged_video, '-c:v', 'copy', '-c:a', 'copy',
-                       '-avoid_negative_ts', 'make_zero', chunk_path]
+            if needs_preprocess:
+                optimized_video_path = os.path.join(dirs["video"], "optimized_900p_24fps.mp4")
+                progress_detail.markdown(f"⚙️ Downscaling to 900p + 24fps (Original: {orig_width}×{orig_height})...")
+                cmd = ['ffmpeg', '-y', '-i', video_path, '-vf', "scale='if(gt(iw,ih),1600,-2)':'if(gt(iw,ih),-2,1600)':force_original_aspect_ratio=decrease",
+                       '-r', '24', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', optimized_video_path]
                 subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                progress_detail.markdown(f"✂️ Chunk {i+1}/{num_chunks} split")
+            else:
+                optimized_video_path = os.path.join(dirs["video"], "optimized_24fps.mp4")
+                progress_detail.markdown(f"⚙️ Converting to 24fps (Resolution: {orig_width}×{orig_height})...")
+                cmd = ['ffmpeg', '-y', '-i', video_path, '-r', '24',
+                       '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', optimized_video_path]
+                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            progress_detail.markdown(f"✅ Split into {num_chunks} chunks")
-            
-            if os.path.exists(merged_video):
-                os.remove(merged_video)
+            if os.path.exists(video_path):
+                os.remove(video_path)
+            video_path = optimized_video_path
+            st.session_state.video_path = video_path
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            progress_detail.markdown(f"🔊 Generating {num_paragraphs} TTS files in parallel...")
+            asyncio.run(generate_all_tts(paragraphs, dirs["audio"], inputs["voice_id"], inputs["final_speed"], inputs["final_pitch"]))
+            progress_detail.markdown(f"✅ TTS complete ({num_paragraphs}/{num_paragraphs})")
+
+            progress_detail.markdown(f"✂️ Splitting video into {num_paragraphs} segments...")
+            video_segments, _ = split_video(video_path, num_paragraphs, dirs["video"])
+            progress_detail.markdown(f"✅ Split complete ({num_paragraphs} segments)")
+
+            step12_elapsed = time.time() - step_start
+            progress_bar.progress(0.33)
+            progress_detail.markdown(f"✅ TTS + Split complete ({step12_elapsed:.1f}s)")
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # STEP 3: Speed-adjust each segment
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            step_status_placeholder.markdown(f"**Step 2/3:** Speed-adjusting {num_paragraphs} segments...")
+            step_start = time.time()
+            adjusted_segments = [None] * num_paragraphs
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 futures = {
                     executor.submit(
-                        process_chunk_with_retry,
-                        i, os.path.join(dirs["chunks"], f"chunk_{i}.mp4"),
-                        min(CHUNK_DURATION, merged_duration - i * CHUNK_DURATION),
-                        dirs["final"],
-                        inputs["play_duration"], inputs["freeze1_duration"], inputs["freeze2_duration"],
-                        inputs["freeze1_zoom"], inputs["freeze2_zoom"], inputs["zoom_duration"]
-                    ): i for i in range(num_chunks)
+                        speed_adjust_segment,
+                        i, video_segments[i],
+                        os.path.join(dirs["audio"], f"audio_{i}.mp3"),
+                        dirs["adjusted"]
+                    ): i for i in range(num_paragraphs)
                 }
                 for future in concurrent.futures.as_completed(futures):
                     idx = futures[future]
                     try:
-                        processed_chunks[idx] = future.result()
+                        adjusted_segments[idx] = future.result()
                     except Exception as e:
-                        st.error(f"❌ Chunk {idx+1} failed: {e}")
-                    done = sum(1 for x in processed_chunks if x is not None)
-                    progress_bar.progress(0.50 + 0.40 * done / num_chunks)
-                    progress_detail.markdown(f"🎬 Chunk {done}/{num_chunks} processed with effects")
+                        st.error(f"❌ Speed adjust failed for segment {idx+1}: {e}")
+                    done = sum(1 for x in adjusted_segments if x is not None)
+                    progress_bar.progress(0.33 + 0.33 * done / num_paragraphs)
+                    progress_detail.markdown(f"⚡ Segment {done}/{num_paragraphs} speed adjusted")
 
             gc.collect()
-            step56_elapsed = time.time() - step56_start
-            progress_detail.markdown(f"✅ All {num_chunks} chunks processed ({step56_elapsed:.1f}s)")
+            step3_elapsed = time.time() - step_start
+            progress_detail.markdown(f"✅ All {num_paragraphs} segments speed-adjusted ({step3_elapsed:.1f}s)")
 
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            # STEP 6: Merge processed chunks
+            # FINAL STEP: Merge all speed-adjusted segments
             # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            step_status_placeholder.markdown("**Step 5/5:** Merging final video...")
-            progress_detail.markdown("🔗 Merging final video...")
+            step_status_placeholder.markdown("**Step 3/3:** Merging final video...")
+            progress_detail.markdown("🔗 Merging segments...")
             step_start = time.time()
-            output_video = "final_output.mp4"
-            try:
-                merge_videos(processed_chunks, output_video)
-                progress_bar.progress(1.0)
-                step6_elapsed = time.time() - step_start
-                progress_detail.markdown(f"✅ Final video merged ({step6_elapsed:.1f}s)")
-                status.update(label="✅ Complete!", state="complete")
-            except Exception as e:
-                st.error(f"❌ Final merge failed: {e}")
-                status.update(label="❌ Failed", state="error")
-                return
-
-            st.write("✅ Final video merged.")
+            output_video = os.path.join(dirs["temp"], "final_output.mp4")
+            merge_speed_adjusted_segments(adjusted_segments, output_video)
+            progress_bar.progress(1.0)
+            final_merge_elapsed = time.time() - step_start
+            progress_detail.markdown(f"✅ Final video merged ({final_merge_elapsed:.1f}s)")
+            gc.collect()
+            
+            st.session_state.processing_active = False
+            status.update(label="✅ Complete!", state="complete")
+            st.write("✅ Processing complete. Download your video below.")
 
         except Exception as e:
             st.error(f"❌ Processing failed: {e}")
@@ -702,7 +569,7 @@ def main():
             st.download_button(
                 "📥 Download Final Video",
                 data=open(output_video, "rb"),
-                file_name="output_video.mp4",
+                file_name="final_output.mp4",
                 mime="video/mp4"
             )
 
@@ -711,9 +578,6 @@ def main():
             if os.path.exists(output_video):
                 os.remove(output_video)
             st.session_state.processing_active = False
-            st.session_state.step3_done = False
             st.rerun()
-
-
 if __name__ == "__main__":
     main()

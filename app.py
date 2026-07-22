@@ -254,11 +254,11 @@ def merge_speed_adjusted_segments(adjusted_segments, output_path):
 # ─────────────────────────────────────────────
 
 def build_cycle_filter(video_path, audio_path, chunk_duration,
-                       play_dur, freeze1_dur, freeze2_dur,
+                       freeze1_dur, freeze2_dur,
                        freeze1_zoom, freeze2_zoom, zoom_dur):
     """Build FFmpeg filter complex for cycle repeat on a chunk."""
     fps = 24
-    cycle_duration = play_dur + freeze1_dur + freeze2_dur
+    cycle_duration = freeze1_dur + freeze2_dur
     num_cycles = math.ceil(chunk_duration / cycle_duration)
 
     # Use original resolution
@@ -291,13 +291,10 @@ def build_cycle_filter(video_path, audio_path, chunk_duration,
         curr = i * cycle_duration
 
         # Play section
-        filter_parts.append(
-            f"[0:v]trim=start={curr}:end={min(curr + play_dur, chunk_duration)},"
-            f"setpts=PTS-STARTPTS[vplay_{i}];")
-        concat_inputs.append(f"[vplay_{i}]")
+
 
         # Freeze 1
-        f1_start = curr + play_dur
+        f1_start = curr
         if f1_start < chunk_duration:
             f1_end = min(f1_start + freeze1_dur, chunk_duration)
             f1_actual_dur = f1_end - f1_start
@@ -312,7 +309,7 @@ def build_cycle_filter(video_path, audio_path, chunk_duration,
                     concat_inputs.append(f"[vf1_{i}]")
 
         # Freeze 2
-        f2_start = curr + play_dur + freeze1_dur
+        f2_start = curr + freeze1_dur
         if f2_start < chunk_duration:
             f2_end = min(f2_start + freeze2_dur, chunk_duration)
             f2_actual_dur = f2_end - f2_start
@@ -400,7 +397,7 @@ def main():
                                     style_data["pitch"] + emotion_data["p"])
         st.caption(f"📊 Speed: {final_speed}%, Pitch: {final_pitch}Hz")
         st.markdown("---")
-        play_duration = st.slider("▶️ Play Duration (s)", 1, 5, 3)
+
         st.markdown("---")
         text_input = st.text_area("📝 Enter Text", height=200)
         if text_input:
@@ -427,7 +424,7 @@ def main():
             "voice_id": voice_id,
             "final_speed": final_speed,
             "final_pitch": final_pitch,
-            "play_duration": play_duration,
+
         }
 
         # Setup temp directories

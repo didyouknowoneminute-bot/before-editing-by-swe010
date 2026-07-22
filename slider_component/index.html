@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="my" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speed &amp; Pitch Slider</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#ec4899',
+                        darkBg: '#0f172a',
+                        darkPanel: '#1e293b'
+                    },
+                    animation: {
+                        'spin-slow': 'spin 3s linear infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Padauk:wght@400;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap');
+
+        body {
+            font-family: 'Padauk', sans-serif;
+            transition: background-color 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #f8fafc;
+        }
+
+        .dark body {
+            background-color: #0f172a;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+
+        .bouncy-btn { position: relative; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .bouncy-btn:hover { transform: translateY(-4px) scale(1.03); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); }
+        .bouncy-btn:active { transform: scale(0.92); }
+        .active-btn { transform: scale(1.02); }
+
+        /* --- Ripple Effect CSS --- */
+        .ripple-container {
+            position: relative;
+            overflow: hidden;
+        }
+        .ripple-effect::after {
+            content: "";
+            display: block;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            background-image: radial-gradient(circle, rgba(255, 255, 255, 0.35) 10%, transparent 10.01%);
+            background-repeat: no-repeat;
+            background-position: 50%;
+            transform: scale(10, 10);
+            opacity: 0;
+            transition: transform .5s, opacity 1s;
+        }
+        .ripple-effect:active::after {
+            transform: scale(0, 0);
+            opacity: .4;
+            transition: 0s;
+        }
+
+        .style-btn.active-btn {
+            border-color: #ec4899 !important; color: #ec4899 !important;
+        }
+        .dark .style-btn.active-btn {
+            border-color: #f472b6 !important; color: #f472b6 !important;
+        }
+
+        /* --- Slider CSS (Smooth) --- */
+        .slider-container { position: relative; width: 100%; height: 12px; }
+        .dark .slider-container { background: #1e293b; box-shadow: inset 0 0 0 1px #334155; }
+
+        .slider-fill { position: absolute; top: 0; left: 0; height: 100%; background: linear-gradient(90deg, #ec4899, #a855f7); border-radius: 6px; transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .slider-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
+        .slider-input::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #ec4899; box-shadow: 0 2px 6px rgba(236, 72, 153, 0.5); cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .slider-input::-webkit-slider-thumb:active { transform: scale(1.15); box-shadow: 0 4px 12px rgba(236, 72, 153, 0.7); }
+
+        .solid-control-btn { position: relative; overflow: hidden; transition: all 0.2s ease; }
+        .dark .solid-control-btn { border-color: #475569; background-color: #1e293b; color: #f1f5f9; }
+        .solid-control-btn:hover { border-color: #ec4899; color: #ec4899; }
+        .dark .solid-control-btn:hover { background-color: #334155; }
+        .solid-control-btn:active { transform: scale(0.95); }
+        .dark .solid-control-btn:active { background-color: #475569; }
+
+        .control-btn {
+            transition: all 0.15s ease;
+        }
+        .control-btn:active {
+            transform: scale(0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen p-3 custom-scrollbar">
+        <div class="bg-white dark:bg-darkPanel rounded-2xl p-5 shadow-xl border border-slate-200 dark:border-slate-700">
+
+            <!-- Speed Slider Section -->
+            <div class="mb-6 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-600">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-sm font-extrabold text-slate-700 dark:text-slate-300">🚀 Speed</span>
+                    <span id="speed-val" class="font-mono text-base font-bold text-pink-500 dark:text-pink-400">0</span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <button onclick="changeVal('speed', -5)" class="solid-control-btn control-btn w-9 h-9 rounded-lg border-2 font-bold text-sm flex items-center justify-center">
+                        <span>-5</span>
+                    </button>
+                    <div class="slider-container flex-1 relative h-8">
+                        <div class="slider-fill" id="speed-fill" style="width: 50%"></div>
+                        <input type="range" id="speed" class="slider-input" min="-100" max="100" value="0" oninput="handleSliderChange('speed', this.value)">
+                    </div>
+                    <button onclick="changeVal('speed', 5)" class="solid-control-btn control-btn w-9 h-9 rounded-lg border-2 font-bold text-sm flex items-center justify-center">
+                        <span>+5</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pitch Slider Section -->
+            <div class="mb-2 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-600">
+                <div class="flex justify-between items-center mb-3">
+                    <span class="text-sm font-extrabold text-slate-700 dark:text-slate-300">🎵 Pitch</span>
+                    <span id="pitch-val" class="font-mono text-base font-bold text-purple-500 dark:text-purple-400">0</span>
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                    <button onclick="changeVal('pitch', -5)" class="solid-control-btn control-btn w-9 h-9 rounded-lg border-2 font-bold text-sm flex items-center justify-center">
+                        <span>-5</span>
+                    </button>
+                    <div class="slider-container flex-1 relative h-8">
+                        <div class="slider-fill" id="pitch-fill" style="width: 50%"></div>
+                        <input type="range" id="pitch" class="slider-input" min="-100" max="100" value="0" oninput="handleSliderChange('pitch', this.value)">
+                    </div>
+                    <button onclick="changeVal('pitch', 5)" class="solid-control-btn control-btn w-9 h-9 rounded-lg border-2 font-bold text-sm flex items-center justify-center">
+                        <span>+5</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const Streamlit = window.parent.Streamlit;
+
+        function init() {
+            updateSlider('speed', document.getElementById('speed').value);
+            updateSlider('pitch', document.getElementById('pitch').value);
+            sendToPython();
+        }
+
+        function sendToPython() {
+            const speed = parseInt(document.getElementById('speed').value);
+            const pitch = parseInt(document.getElementById('pitch').value);
+            Streamlit.setComponentValue({
+                speed: speed,
+                pitch: pitch
+            });
+        }
+
+        function updateSlider(id, val) {
+            const min = -100;
+            const max = 100;
+            const percentage = ((val - min) / (max - min)) * 100;
+            document.getElementById(id + '-fill').style.width = percentage + '%';
+            let displayVal = val > 0 ? "+" + val : val;
+            document.getElementById(id + '-val').innerText = displayVal;
+        }
+
+        function changeVal(id, amount) {
+            let el = document.getElementById(id);
+            let newVal = parseInt(el.value) + amount;
+            if (newVal > 100) newVal = 100;
+            if (newVal < -100) newVal = -100;
+            el.value = newVal;
+            updateSlider(id, newVal);
+            sendToPython();
+        }
+
+        function handleSliderChange(id, val) {
+            let intVal = parseInt(val);
+            if (intVal > 100) intVal = 100;
+            if (intVal < -100) intVal = -100;
+            updateSlider(id, intVal);
+            sendToPython();
+        }
+
+        // Listen for messages from Python (to update slider when preset changes)
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (data && data.args && data.args.speed !== undefined) {
+                document.getElementById('speed').value = data.args.speed;
+                updateSlider('speed', data.args.speed);
+            }
+            if (data && data.args && data.args.pitch !== undefined) {
+                document.getElementById('pitch').value = data.args.pitch;
+                updateSlider('pitch', data.args.pitch);
+            }
+        });
+
+        window.onload = function() {
+            init();
+            Streamlit.setComponentReady();
+            setTimeout(() => Streamlit.setFrameHeight(), 100);
+            const resizeObserver = new ResizeObserver(() => Streamlit.setFrameHeight());
+            resizeObserver.observe(document.body);
+        };
+    </script>
+</body>
+</html>

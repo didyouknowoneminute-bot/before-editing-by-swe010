@@ -9,6 +9,7 @@ import time
 import shutil
 import gc
 import threading
+import base64
 
 
 # ─────────────────────────────────────────────
@@ -84,6 +85,88 @@ RECAP_STYLES = get_recap_styles()
 EMOTIONS = get_emotions()
 
 st.set_page_config(page_title="Video & Text Processor", layout="wide")
+
+
+# ─────────────────────────────────────────────
+# SRT Subtitle Generator
+# ─────────────────────────────────────────────
+
+class SmartSubMaker:
+    """Generate SRT subtitles proportional to text length and total video duration."""
+
+    def __init__(self, full_text, duration_seconds):
+        self.full_text = full_text.strip().replace('\n', ' ')
+        self.duration_seconds = duration_seconds
+        self.max_chars_per_line = 60
+
+    def safe_myanmar_split(self, text):
+        """Split Myanmar text safely without breaking syllables.
+        Checks Unicode range \u102B-\u103E and \u105E-\u105F for medials/vowels/signs."""
+        chunks = []
+        words = text.split(' ')
+        current_chunk = ""
+        for word in words:
+            if not word:
+                continue
+            if current_chunk and len(current_chunk) + len(word) + 1 > self.max_chars_per_line:
+                chunks.append(current_chunk.strip())
+                current_chunk = word + " "
+            else:
+                current_chunk += word + " "
+        while len(current_chunk) > self.max_chars_per_line + 20:
+            split_idx = self.max_chars_per_line
+            while split_idx < len(current_chunk):
+                char = current_chunk[split_idx]
+                if '\u102B' <= char <= '\u103E' or '\u105E' <= char <= '\u105F':
+                    split_idx += 1
+                else:
+                    break
+            chunks.append(current_chunk[:split_idx].strip())
+            current_chunk = current_chunk[split_idx:]
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+        return chunks
+
+    def generate_subs(self):
+        """Generate full SRT text with proportional timestamps."""
+        if not self.full_text or self.duration_seconds <= 0:
+            return "1\n00:00:00,000 --> 00:00:05,000\n[အသံထွက်နေပါသည်...]\n\n"
+
+        # Split by Myanmar period (။) first
+        raw_sentences = [s.strip() + "။" for s in self.full_text.split("။") if s.strip()]
+        if not raw_sentences:
+            raw_sentences = [self.full_text]
+
+        # Further split long sentences by space within char limit
+        final_chunks = []
+        for rs in raw_sentences:
+            split_parts = self.safe_myanmar_split(rs)
+            final_chunks.extend(split_parts)
+
+        total_chars = sum(len(c) for c in final_chunks)
+        if total_chars == 0:
+            total_chars = 1
+
+        srt_text = ""
+        current_time = 0.0
+        for i, chunk in enumerate(final_chunks, 1):
+            char_ratio = len(chunk) / total_chars
+            chunk_duration = self.duration_seconds * char_ratio
+            start_time = current_time
+            end_time = current_time + chunk_duration
+            srt_text += f"{i}\n"
+            srt_text += f"{self._format_time(start_time)} --> {self._format_time(end_time)}\n"
+            srt_text += f"{chunk}\n\n"
+            current_time = end_time
+        return srt_text
+
+    def _format_time(self, seconds_float):
+        """Format seconds to SRT timestamp HH:MM:SS,mmm."""
+        hours = int(seconds_float // 3600)
+        minutes = int((seconds_float % 3600) // 60)
+        secs = int(seconds_float % 60)
+        millis = int(round((seconds_float - int(seconds_float)) * 1000))
+        return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
 def count_paragraphs(text):
@@ -536,6 +619,20 @@ def main():
             progress_bar.progress(1.0)
             final_merge_elapsed = time.time() - step_start
             progress_detail.markdown(f"✅ Final video merged ({final_merge_elapsed:.1f}s)")
+
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            # GENERATE SRT SUBTITLE FILE
+            # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            progress_detail.markdown("📝 Generating SRT subtitles...")
+            final_duration = get_video_duration(output_video)
+            full_text = inputs["text"]
+            sub_maker = SmartSubMaker(full_text, final_duration)
+            srt_text = sub_maker.generate_subs()
+            srt_path = os.path.join(dirs["temp"], "final_output.srt")
+            with open(srt_path, "w", encoding="utf-8") as f:
+                f.write(srt_text)
+            progress_detail.markdown("✅ SRT subtitles generated")
+
             gc.collect()
             
             st.session_state.processing_active = False
@@ -553,12 +650,22 @@ def main():
         st.success(f"🎉 Completed in **{format_time(total_elapsed)}**")
 
         if os.path.exists(output_video):
-            st.download_button(
-                "📥 Download Final Video",
-                data=open(output_video, "rb"),
-                file_name="final_output.mp4",
-                mime="video/mp4"
-            )
+            col_v, col_s = st.columns(2)
+            with col_v:
+                st.download_button(
+                    "📥 Download Final Video",
+                    data=open(output_video, "rb"),
+                    file_name="final_output.mp4",
+                    mime="video/mp4"
+                )
+            with col_s:
+                if os.path.exists(srt_path):
+                    st.download_button(
+                        "📝 Download SRT Subtitles",
+                        data=open(srt_path, "r", encoding="utf-8"),
+                        file_name="final_output.srt",
+                        mime="text/plain"
+                    )
 
         if st.button("🧹 Cleanup All Files"):
             shutil.rmtree(dirs["temp"], ignore_errors=True)

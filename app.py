@@ -672,7 +672,7 @@ def main():
                     mime="text/plain"
                 )
 
-    if st.button("🧹 Cleanup All Files"):
+    if st.button("🔄 Process Another Video"):
         if st.session_state.get("dirs_path"):
             shutil.rmtree(st.session_state.dirs_path["temp"], ignore_errors=True)
         if st.session_state.get("output_video") and os.path.exists(st.session_state.output_video):

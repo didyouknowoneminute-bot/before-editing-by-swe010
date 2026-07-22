@@ -484,28 +484,6 @@ def main():
             progress_detail.markdown("Initializing...")
             step_start = time.time()
 
-            # Pre-process video: cap at 900p, convert to 24fps
-            orig_width, orig_height = get_video_resolution(video_path)
-            needs_preprocess = (orig_width > 1600) or (orig_height > 900) or (get_video_duration(video_path) == 0) # Handle zero duration
-
-            if needs_preprocess:
-                optimized_video_path = os.path.join(dirs["video"], "optimized_900p_24fps.mp4")
-                progress_detail.markdown(f"⚙️ Downscaling to 900p + 24fps (Original: {orig_width}×{orig_height})...")
-                cmd = ['ffmpeg', '-y', '-i', video_path, '-vf', "scale='if(gt(iw,ih),1600,-2)':'if(gt(iw,ih),-2,1600)':force_original_aspect_ratio=decrease",
-                       '-r', '24', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', optimized_video_path]
-                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            else:
-                optimized_video_path = os.path.join(dirs["video"], "optimized_24fps.mp4")
-                progress_detail.markdown(f"⚙️ Converting to 24fps (Resolution: {orig_width}×{orig_height})...")
-                cmd = ['ffmpeg', '-y', '-i', video_path, '-r', '24',
-                       '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac', optimized_video_path]
-                subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-            if os.path.exists(video_path):
-                os.remove(video_path)
-            video_path = optimized_video_path
-            st.session_state.video_path = video_path
-
             progress_detail.markdown(f"🔊 Generating {num_paragraphs} TTS files in parallel...")
             asyncio.run(generate_all_tts(paragraphs, dirs["audio"], inputs["voice_id"], inputs["final_speed"], inputs["final_pitch"]))
             progress_detail.markdown(f"✅ TTS complete ({num_paragraphs}/{num_paragraphs})")

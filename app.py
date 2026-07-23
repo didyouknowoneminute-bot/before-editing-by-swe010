@@ -227,26 +227,36 @@ ENGLISH_VOICE_LABELS = {
     "v19": "Sonia (GB)",
 }
 
+MYANMAR_VOICE_IDS = {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14"}
+
 MYANMAR_VOICE_LABELS = {
-    "v1": "V1 ♂",
-    "v2": "V2 ♀",
-    "v3": "V3 ♂",
-    "v4": "V4 ♂",
-    "v5": "V5 ♂",
-    "v6": "V6 ♀",
-    "v7": "V7 ♂",
-    "v8": "V8 ♀",
-    "v9": "V9 ♂",
-    "v10": "V10 ♀",
-    "v11": "V11 ♀",
-    "v12": "V12 ♂",
-    "v13": "V13 ♀",
-    "v14": "V14 ♂",
-    "v15": "V15 ♀",
-    "v16": "V16 ♀",
-    "v17": "V17 ♂",
-    "v18": "V18 ♂",
-    "v19": "V19 ♀",
+    "v1": "V1 ♂ Thiha (MM)",
+    "v2": "V2 ♀ Nilar (MM)",
+    "v3": "V3 ♂ Gianni (IT)",
+    "v4": "V4 ♂ William (AU)",
+    "v5": "V5 ♂ Andrew (US)",
+    "v6": "V6 ♀ Ava (US)",
+    "v7": "V7 ♂ Brian (US)",
+    "v8": "V8 ♀ Emma (US)",
+    "v9": "V9 ♂ Remy (FR)",
+    "v10": "V10 ♀ Vivienne (FR)",
+    "v11": "V11 ♀ Seraphina (DE)",
+    "v12": "V12 ♂ Florian (DE)",
+    "v13": "V13 ♀ Thalita (PT-BR)",
+    "v14": "V14 ♂ Hyunsu (KO)",
+}
+
+ENGLISH_VOICE_LABELS = {
+    "v4": "William (AU) ♂",
+    "v5": "Andrew (US) ♂",
+    "v6": "Ava (US) ♀",
+    "v7": "Brian (US) ♂",
+    "v8": "Emma (US) ♀",
+    "v15": "Jenny (US) ♀",
+    "v16": "Aria (US) ♀",
+    "v17": "Guy (US) ♂",
+    "v18": "Ryan (GB) ♂",
+    "v19": "Sonia (GB) ♀",
 }
 
 RECAP_STYLE_EN = {
@@ -564,7 +574,7 @@ def main():
     if is_en:
         voice_options = [ENGLISH_VOICE_LABELS[v["id"]] for v in VOICES if v["id"] in ENGLISH_VOICE_IDS]
     else:
-        voice_options = [MYANMAR_VOICE_LABELS[v["id"]] for v in VOICES]
+        voice_options = [MYANMAR_VOICE_LABELS[v["id"]] for v in VOICES if v["id"] in MYANMAR_VOICE_IDS]
 
     # Build recap style and emotion labels
     if is_en:

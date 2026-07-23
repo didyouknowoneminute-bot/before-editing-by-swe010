@@ -804,6 +804,7 @@ def main():
         custom_name = st.text_input(custom_input_label, value="final_output", key="custom_filename")
         if not custom_name:
             custom_name = "final_output"
+        custom_name = custom_name.replace(" ", "_")
 
         # Read files as bytes for safe download
         video_data = None

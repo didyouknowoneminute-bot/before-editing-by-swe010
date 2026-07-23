@@ -663,12 +663,18 @@ def main():
 
     # Show download buttons even after rerun (outside the processing block)
     if st.session_state.get("output_video") and os.path.exists(st.session_state.get("output_video", "")):
+        # Custom filename input
+        st.markdown("**📁 Custom Filename**")
+        custom_name = st.text_input("Enter filename (without extension)", value="final_output", key="custom_filename")
+        if not custom_name:
+            custom_name = "final_output"
+
         col_v, col_s = st.columns(2)
         with col_v:
             st.download_button(
                 "📥 Download Final Video",
                 data=open(st.session_state.output_video, "rb"),
-                file_name="final_output.mp4",
+                file_name=f"{custom_name}.mp4",
                 mime="video/mp4"
             )
         with col_s:
@@ -677,7 +683,7 @@ def main():
                 st.download_button(
                     "📝 Download SRT Subtitles",
                     data=open(srt_file, "r", encoding="utf-8"),
-                    file_name="final_output.srt",
+                    file_name=f"{custom_name}.srt",
                     mime="text/plain"
                 )
 

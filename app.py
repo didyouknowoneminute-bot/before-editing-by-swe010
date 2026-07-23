@@ -805,7 +805,11 @@ def main():
         custom_label = "📁 Custom Filename" if not is_en else "📁 Custom Filename"
         custom_input_label = "Enter filename (without extension)" if is_en else "ဖိုင်အမည် ထည့်ပါ (extension မပါ)"
         st.markdown(f"**{custom_label}**")
-        custom_name = st.text_input(custom_input_label, value="final_output", key="custom_filename")
+        custom_name = st.text_input(
+            custom_input_label,
+            value=st.session_state.get("custom_filename", "final_output"),
+            key="custom_filename"
+        )
         if not custom_name:
             custom_name = "final_output"
         custom_name = custom_name.replace(" ", "_")

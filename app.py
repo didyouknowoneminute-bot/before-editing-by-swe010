@@ -805,20 +805,31 @@ def main():
         if not custom_name:
             custom_name = "final_output"
 
+        # Read files as bytes for safe download
+        video_data = None
+        srt_data = None
+        if os.path.exists(st.session_state.output_video):
+            with open(st.session_state.output_video, "rb") as f:
+                video_data = f.read()
+        srt_file = st.session_state.get("srt_path", "")
+        if os.path.exists(srt_file):
+            with open(srt_file, "rb") as f:
+                srt_data = f.read()
+
         col_v, col_s = st.columns(2)
         with col_v:
-            st.download_button(
-                "📥 Download Video" if is_en else "📥 Download Video",
-                data=open(st.session_state.output_video, "rb"),
-                file_name=f"{custom_name}.mp4",
-                mime="video/mp4"
-            )
+            if video_data:
+                st.download_button(
+                    "📥 Download Video" if is_en else "📥 Download Video",
+                    data=video_data,
+                    file_name=f"{custom_name}.mp4",
+                    mime="video/mp4"
+                )
         with col_s:
-            srt_file = st.session_state.get("srt_path", "")
-            if os.path.exists(srt_file):
+            if srt_data:
                 st.download_button(
                     "📝 Download SRT" if is_en else "📝 Download SRT",
-                    data=open(srt_file, "r", encoding="utf-8"),
+                    data=srt_data,
                     file_name=f"{custom_name}.srt",
                     mime="text/plain"
                 )

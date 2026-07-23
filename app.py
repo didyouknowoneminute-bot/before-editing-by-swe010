@@ -636,12 +636,12 @@ def main():
     # Row 3: Text Input & Video Upload
     input_col, video_col = st.columns(2)
     with input_col:
-        text_input = st.text_area(label_text, height=200, key="user_text")
+        text_input = st.text_area(label_text, height=200)
         if text_input:
             paragraphs = count_paragraphs(text_input)
             st.info(f"📊 Paragraphs: {len(paragraphs)} | Characters: {len(text_input)}")
     with video_col:
-        video_file = st.file_uploader(label_video, type=["mp4", "mov", "avi"], key="uploaded_video")
+        video_file = st.file_uploader(label_video, type=["mp4", "mov", "avi"])
 
     # Initialize session state for tracking
     if 'processing_active' not in st.session_state:
@@ -849,8 +849,6 @@ def main():
         st.session_state.dirs_path = None
         st.session_state.video_bytes = None
         st.session_state.srt_bytes = None
-        st.session_state.user_text = ""
-        st.session_state.uploaded_video = None
         st.rerun()
 if __name__ == "__main__":
     main()

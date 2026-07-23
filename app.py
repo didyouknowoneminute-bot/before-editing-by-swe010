@@ -46,7 +46,12 @@ def get_voices():
         {"id": "v11", "name": "V11 ♀", "gender": "Female"},
         {"id": "v12", "name": "V12 ♂", "gender": "Male"},
         {"id": "v13", "name": "V13 ♀", "gender": "Female"},
-        {"id": "v14", "name": "V14 ♂", "gender": "Male"}
+        {"id": "v14", "name": "V14 ♂", "gender": "Male"},
+        {"id": "v15", "name": "V15 ♀", "gender": "Female"},
+        {"id": "v16", "name": "V16 ♀", "gender": "Female"},
+        {"id": "v17", "name": "V17 ♂", "gender": "Male"},
+        {"id": "v18", "name": "V18 ♂", "gender": "Male"},
+        {"id": "v19", "name": "V19 ♀", "gender": "Female"}
     ]
 
 @st.cache_resource
@@ -200,7 +205,75 @@ VOICE_MAP = {
     "v11": "de-DE-SeraphinaMultilingualNeural",
     "v12": "de-DE-FlorianMultilingualNeural",
     "v13": "pt-BR-ThalitaMultilingualNeural",
-    "v14": "ko-KR-HyunsuMultilingualNeural"
+    "v14": "ko-KR-HyunsuMultilingualNeural",
+    "v15": "en-US-JennyNeural",
+    "v16": "en-US-AriaNeural",
+    "v17": "en-US-GuyNeural",
+    "v18": "en-GB-RyanNeural",
+    "v19": "en-GB-SoniaNeural"
+}
+
+ENGLISH_VOICE_IDS = {"v4", "v5", "v6", "v7", "v8", "v15", "v16", "v17", "v18", "v19"}
+ENGLISH_VOICE_LABELS = {
+    "v4": "William (AU)",
+    "v5": "Andrew (US)",
+    "v6": "Ava (US)",
+    "v7": "Brian (US)",
+    "v8": "Emma (US)",
+    "v15": "Jenny (US)",
+    "v16": "Aria (US)",
+    "v17": "Guy (US)",
+    "v18": "Ryan (GB)",
+    "v19": "Sonia (GB)",
+}
+
+MYANMAR_VOICE_LABELS = {
+    "v1": "V1 ♂",
+    "v2": "V2 ♀",
+    "v3": "V3 ♂",
+    "v4": "V4 ♂",
+    "v5": "V5 ♂",
+    "v6": "V6 ♀",
+    "v7": "V7 ♂",
+    "v8": "V8 ♀",
+    "v9": "V9 ♂",
+    "v10": "V10 ♀",
+    "v11": "V11 ♀",
+    "v12": "V12 ♂",
+    "v13": "V13 ♀",
+    "v14": "V14 ♂",
+    "v15": "V15 ♀",
+    "v16": "V16 ♀",
+    "v17": "V17 ♂",
+    "v18": "V18 ♂",
+    "v19": "V19 ♀",
+}
+
+RECAP_STYLE_EN = {
+    "ပုံမှန်အသံ": "Normal",
+    "ကျားကြီး ၁": "Deep Male 1",
+    "ကျားကြီး ၂": "Deep Male 2",
+    "ကျားကြီး ၃": "Deep Male 3",
+    "နီလာ ချွဲသံ": "Soft Voice",
+    "ပေါင်းစပ် ၁၅": "Combo Light",
+    "ပေါင်းစပ် ၃၀": "Combo Medium",
+    "ပေါင်းစပ် ၅၀": "Combo Strong",
+    "အသံသေး ၂၀": "High Pitch Light",
+    "အသံသေး ၅၀": "High Pitch Strong",
+}
+
+EMOTION_EN = {
+    "စိတ်လှုပ်ရှား 🤩": "Exciting 🤩",
+    "တည်ငြိမ် 😌": "Calm 😌",
+    "သတင်း 💼": "News 💼",
+    "ဇာတ်ကြောင်း 📖": "Narrative 📖",
+    "ပျော်ရွှင် 😊": "Happy 😊",
+    "လေးနက် 😠": "Serious 😠",
+    "တီးတိုး 🤫": "Whisper 🤫",
+    "ဝမ်းနည်း 😢": "Sad 😢",
+    "ရွဲ့ပြော 🙄": "Sarcastic 🙄",
+    "ဒေါသထွက် 🤬": "Angry 🤬",
+    "ကြောက်လန့် 😨": "Fear 😨",
 }
 
 async def generate_tts_async(text, output_path, voice_id, speed, pitch):
@@ -465,24 +538,75 @@ def merge_videos(video_list, output_path):
 def main():
     st.title("🎬 Video & Text Processor with TTS")
 
+    # ─────────────────────────────────────────────
+    # Language Toggle
+    # ─────────────────────────────────────────────
+    if "language" not in st.session_state:
+        st.session_state.language = "မြန်မာ"
+
+    st.session_state.language = st.segmented_control(
+        "Language / ဘာသာစကား",
+        options=["မြန်မာ", "English"],
+        default=st.session_state.language,
+    )
+
+    lang = st.session_state.language
+    is_en = lang == "English"
+
     st.markdown("---")
 
     # ─────────────────────────────────────────────
     # Settings Section (Main UI)
     # ─────────────────────────────────────────────
-    st.header("⚙️ Settings")
+    st.header("⚙️ Settings" if not is_en else "⚙️ Settings")
+
+    # Build voice list based on language
+    if is_en:
+        voice_options = [ENGLISH_VOICE_LABELS[v["id"]] for v in VOICES if v["id"] in ENGLISH_VOICE_IDS]
+    else:
+        voice_options = [MYANMAR_VOICE_LABELS[v["id"]] for v in VOICES]
+
+    # Build recap style and emotion labels
+    if is_en:
+        style_options = [RECAP_STYLE_EN.get(s["name"], s["name"]) for s in RECAP_STYLES]
+        emotion_options = [EMOTION_EN.get(e["name"], e["name"]) for e in EMOTIONS]
+    else:
+        style_options = [s["name"] for s in RECAP_STYLES]
+        emotion_options = [e["name"] for e in EMOTIONS]
+
+    # UI labels
+    label_voice = "Voice" if is_en else "အသံ ရွေးပါ"
+    label_style = "Recap Style" if is_en else "အသံ ဟန်"
+    label_emotion = "Emotion" if is_en else "စိတ်ခံစားမှု"
+    label_preset = "📊 Preset → Speed: {speed}%, Pitch: {pitch}Hz"
+    label_final = "📊 Final → Speed: {speed}%, Pitch: {pitch}Hz"
+    label_speed = "Speed (%)" if is_en else "အမြန်နှုန်း (%)"
+    label_pitch = "Pitch (Hz)" if is_en else "အသံ အနိမ့်အမြင့် (Hz)"
+    label_text = "📝 Enter Text" if is_en else "📝 စာသား ထည့်ပါ"
+    label_video = "🎥 Upload Video" if is_en else "🎥 ဗီဒီယို တင်ပါ"
+    label_start = "🚀 Start Processing" if is_en else "🚀 Processing စတင်ပါ"
+    label_info = "📊 Paragraphs: {para} | Characters: {char}"
+    label_error = "❌ Provide text and video." if is_en else "❌ စာသား နှင့် ဗီဒီယို ထည့်ပါ။"
 
     # Row 1: Voice, Recap Style, Emotion
     sel1, sel2, sel3 = st.columns(3)
     with sel1:
-        selected_voice = st.selectbox("Select Voice", options=[v["name"] for v in VOICES])
-        voice_id = next(v["id"] for v in VOICES if v["name"] == selected_voice)
+        selected_voice = st.selectbox(label_voice, options=voice_options)
     with sel2:
-        selected_style = st.selectbox("Recap Style", options=[s["name"] for s in RECAP_STYLES])
-        style_data = next(s for s in RECAP_STYLES if s["name"] == selected_style)
+        selected_style = st.selectbox(label_style, options=style_options)
     with sel3:
-        selected_emotion = st.selectbox("Emotion", options=[e["name"] for e in EMOTIONS])
-        emotion_data = next(e for e in EMOTIONS if e["name"] == selected_emotion)
+        selected_emotion = st.selectbox(label_emotion, options=emotion_options)
+
+    # Map selected labels back to data
+    if is_en:
+        en_to_id = {label: v["id"] for v in VOICES if v["id"] in ENGLISH_VOICE_IDS for label in [ENGLISH_VOICE_LABELS.get(v["id"])] if ENGLISH_VOICE_LABELS.get(v["id"]) == selected_voice}
+        voice_id = en_to_id.get(selected_voice, next((v["id"] for v in VOICES if ENGLISH_VOICE_LABELS.get(v["id"]) == selected_voice), "v5"))
+        style_data = next((s for s in RECAP_STYLES if RECAP_STYLE_EN.get(s["name"]) == selected_style), RECAP_STYLES[0])
+        emotion_data = next((e for e in EMOTIONS if EMOTION_EN.get(e["name"]) == selected_emotion), EMOTIONS[0])
+    else:
+        voice_id = next((v["id"] for v in VOICES if MYANMAR_VOICE_LABELS.get(v["id"]) == selected_voice), "v1")
+        style_data = next((s for s in RECAP_STYLES if s["name"] == selected_style), RECAP_STYLES[0])
+        emotion_data = next((e for e in EMOTIONS if e["name"] == selected_emotion), EMOTIONS[0])
 
     preset_speed = style_data["speed"] + emotion_data["s"]
     preset_pitch = style_data["pitch"] + emotion_data["p"]
@@ -492,9 +616,9 @@ def main():
     st.markdown("**🎛️ Adjust Speed & Pitch**")
     slider1, slider2 = st.columns(2)
     with slider1:
-        final_speed = st.slider("Speed (%)", min_value=-50, max_value=100, value=preset_speed, step=1)
+        final_speed = st.slider(label_speed, min_value=-50, max_value=100, value=preset_speed, step=1)
     with slider2:
-        final_pitch = st.slider("Pitch (Hz)", min_value=-50, max_value=100, value=preset_pitch, step=1)
+        final_pitch = st.slider(label_pitch, min_value=-50, max_value=100, value=preset_pitch, step=1)
 
     st.caption(f"📊 Final → Speed: {final_speed}%, Pitch: {final_pitch}Hz")
     st.markdown("---")
@@ -502,22 +626,22 @@ def main():
     # Row 3: Text Input & Video Upload
     input_col, video_col = st.columns(2)
     with input_col:
-        text_input = st.text_area("📝 Enter Text", height=200)
+        text_input = st.text_area(label_text, height=200)
         if text_input:
             paragraphs = count_paragraphs(text_input)
             st.info(f"📊 Paragraphs: {len(paragraphs)} | Characters: {len(text_input)}")
     with video_col:
-        video_file = st.file_uploader("🎥 Upload Video", type=["mp4", "mov", "avi"])
+        video_file = st.file_uploader(label_video, type=["mp4", "mov", "avi"])
 
     # Initialize session state for tracking
     if 'processing_active' not in st.session_state:
         st.session_state.processing_active = False
 
     # Start button logic
-    if st.button("🚀 Start Processing") and not st.session_state.processing_active:
+    if st.button(label_start) and not st.session_state.processing_active:
 
         if not text_input or not video_file:
-            st.error("❌ Provide text and video.")
+            st.error(label_error)
             return
         
         st.session_state.processing_active = True
@@ -664,15 +788,17 @@ def main():
     # Show download buttons even after rerun (outside the processing block)
     if st.session_state.get("output_video") and os.path.exists(st.session_state.get("output_video", "")):
         # Custom filename input
-        st.markdown("**📁 Custom Filename**")
-        custom_name = st.text_input("Enter filename (without extension)", value="final_output", key="custom_filename")
+        custom_label = "📁 Custom Filename" if not is_en else "📁 Custom Filename"
+        custom_input_label = "Enter filename (without extension)" if is_en else "ဖိုင်အမည် ထည့်ပါ (extension မပါ)"
+        st.markdown(f"**{custom_label}**")
+        custom_name = st.text_input(custom_input_label, value="final_output", key="custom_filename")
         if not custom_name:
             custom_name = "final_output"
 
         col_v, col_s = st.columns(2)
         with col_v:
             st.download_button(
-                "📥 Download Final Video",
+                "📥 Download Video" if is_en else "📥 Download Video",
                 data=open(st.session_state.output_video, "rb"),
                 file_name=f"{custom_name}.mp4",
                 mime="video/mp4"
@@ -681,13 +807,14 @@ def main():
             srt_file = st.session_state.get("srt_path", "")
             if os.path.exists(srt_file):
                 st.download_button(
-                    "📝 Download SRT Subtitles",
+                    "📝 Download SRT" if is_en else "📝 Download SRT",
                     data=open(srt_file, "r", encoding="utf-8"),
                     file_name=f"{custom_name}.srt",
                     mime="text/plain"
                 )
 
-    if st.button("🔄 Process Another Video"):
+    label_reset = "🔄 Process Another Video" if is_en else "🔄 နောက်ထပ် ဗီဒီယို ထပ်လုပ်မယ်"
+    if st.button(label_reset):
         if st.session_state.get("dirs_path"):
             shutil.rmtree(st.session_state.dirs_path["temp"], ignore_errors=True)
         if st.session_state.get("output_video") and os.path.exists(st.session_state.output_video):

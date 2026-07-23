@@ -782,6 +782,10 @@ def main():
             st.session_state.output_video = output_video
             st.session_state.srt_path = srt_path
             st.session_state.dirs_path = dirs
+            with open(output_video, "rb") as f:
+                st.session_state.video_bytes = f.read()
+            with open(srt_path, "rb") as f:
+                st.session_state.srt_bytes = f.read()
             status.update(label="✅ Complete!", state="complete")
             st.write("✅ Processing complete. Download your video below.")
 
@@ -806,16 +810,9 @@ def main():
             custom_name = "final_output"
         custom_name = custom_name.replace(" ", "_")
 
-        # Read files as bytes for safe download
-        video_data = None
-        srt_data = None
-        if os.path.exists(st.session_state.output_video):
-            with open(st.session_state.output_video, "rb") as f:
-                video_data = f.read()
-        srt_file = st.session_state.get("srt_path", "")
-        if os.path.exists(srt_file):
-            with open(srt_file, "rb") as f:
-                srt_data = f.read()
+        # Read bytes from session_state (stored once after processing)
+        video_data = st.session_state.get("video_bytes")
+        srt_data = st.session_state.get("srt_bytes")
 
         col_v, col_s = st.columns(2)
         with col_v:
@@ -845,6 +842,8 @@ def main():
         st.session_state.output_video = None
         st.session_state.srt_path = None
         st.session_state.dirs_path = None
+        st.session_state.video_bytes = None
+        st.session_state.srt_bytes = None
         st.rerun()
 if __name__ == "__main__":
     main()

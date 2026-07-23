@@ -636,12 +636,12 @@ def main():
     # Row 3: Text Input & Video Upload
     input_col, video_col = st.columns(2)
     with input_col:
-        text_input = st.text_area(label_text, height=200)
+        text_input = st.text_area(label_text, height=200, key="user_text")
         if text_input:
             paragraphs = count_paragraphs(text_input)
             st.info(f"📊 Paragraphs: {len(paragraphs)} | Characters: {len(text_input)}")
     with video_col:
-        video_file = st.file_uploader(label_video, type=["mp4", "mov", "avi"])
+        video_file = st.file_uploader(label_video, type=["mp4", "mov", "avi"], key="uploaded_video")
 
     # Initialize session state for tracking
     if 'processing_active' not in st.session_state:
@@ -832,8 +832,9 @@ def main():
                     mime="text/plain"
                 )
 
+    st.markdown("---")
     label_reset = "🔄 Process Another Video" if is_en else "🔄 နောက်ထပ် ဗီဒီယို ထပ်လုပ်မယ်"
-    if st.button(label_reset):
+    if st.button(label_reset, use_container_width=True):
         if st.session_state.get("dirs_path"):
             shutil.rmtree(st.session_state.dirs_path["temp"], ignore_errors=True)
         if st.session_state.get("output_video") and os.path.exists(st.session_state.output_video):
@@ -844,6 +845,8 @@ def main():
         st.session_state.dirs_path = None
         st.session_state.video_bytes = None
         st.session_state.srt_bytes = None
+        st.session_state.user_text = ""
+        st.session_state.uploaded_video = None
         st.rerun()
 if __name__ == "__main__":
     main()

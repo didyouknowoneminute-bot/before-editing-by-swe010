@@ -465,39 +465,48 @@ def merge_videos(video_list, output_path):
 def main():
     st.title("🎬 Video & Text Processor with TTS")
 
+    st.markdown("---")
 
+    # ─────────────────────────────────────────────
+    # Settings Section (Main UI)
+    # ─────────────────────────────────────────────
+    st.header("⚙️ Settings")
 
-    with st.sidebar:
-        st.header("⚙️ Settings")
+    # Row 1: Voice, Recap Style, Emotion
+    sel1, sel2, sel3 = st.columns(3)
+    with sel1:
         selected_voice = st.selectbox("Select Voice", options=[v["name"] for v in VOICES])
         voice_id = next(v["id"] for v in VOICES if v["name"] == selected_voice)
+    with sel2:
+        selected_style = st.selectbox("Recap Style", options=[s["name"] for s in RECAP_STYLES])
+        style_data = next(s for s in RECAP_STYLES if s["name"] == selected_style)
+    with sel3:
+        selected_emotion = st.selectbox("Emotion", options=[e["name"] for e in EMOTIONS])
+        emotion_data = next(e for e in EMOTIONS if e["name"] == selected_emotion)
 
-        # --- Recap Style & Emotion Dropdowns (Preset Buttons) ---
-        col1, col2 = st.columns(2)
-        with col1:
-            selected_style = st.selectbox("Recap Style", options=[s["name"] for s in RECAP_STYLES])
-            style_data = next(s for s in RECAP_STYLES if s["name"] == selected_style)
-        with col2:
-            selected_emotion = st.selectbox("Emotion", options=[e["name"] for e in EMOTIONS])
-            emotion_data = next(e for e in EMOTIONS if e["name"] == selected_emotion)
+    preset_speed = style_data["speed"] + emotion_data["s"]
+    preset_pitch = style_data["pitch"] + emotion_data["p"]
+    st.caption(f"📊 Preset → Speed: {preset_speed}%, Pitch: {preset_pitch}Hz")
 
-        preset_speed = style_data["speed"] + emotion_data["s"]
-        preset_pitch = style_data["pitch"] + emotion_data["p"]
-        st.caption(f"📊 Preset → Speed: {preset_speed}%, Pitch: {preset_pitch}Hz")
-
-        # ─────────────────────────────────────────────
-        # Speed & Pitch Sliders
-        # ─────────────────────────────────────────────
-        st.markdown("**🎛️ Adjust Speed & Pitch**")
+    # Row 2: Speed & Pitch Sliders
+    st.markdown("**🎛️ Adjust Speed & Pitch**")
+    slider1, slider2 = st.columns(2)
+    with slider1:
         final_speed = st.slider("Speed (%)", min_value=-50, max_value=100, value=preset_speed, step=1)
+    with slider2:
         final_pitch = st.slider("Pitch (Hz)", min_value=-50, max_value=100, value=preset_pitch, step=1)
 
-        st.caption(f"📊 Final → Speed: {final_speed}%, Pitch: {final_pitch}Hz")
-        st.markdown("---")
+    st.caption(f"📊 Final → Speed: {final_speed}%, Pitch: {final_pitch}Hz")
+    st.markdown("---")
+
+    # Row 3: Text Input & Video Upload
+    input_col, video_col = st.columns(2)
+    with input_col:
         text_input = st.text_area("📝 Enter Text", height=200)
         if text_input:
             paragraphs = count_paragraphs(text_input)
             st.info(f"📊 Paragraphs: {len(paragraphs)} | Characters: {len(text_input)}")
+    with video_col:
         video_file = st.file_uploader("🎥 Upload Video", type=["mp4", "mov", "avi"])
 
     # Initialize session state for tracking

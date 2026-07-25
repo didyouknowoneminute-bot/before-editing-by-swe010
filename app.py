@@ -598,25 +598,93 @@ def main():
     label_info = "📊 Paragraphs: {para} | Characters: {char}"
     label_error = "❌ Provide text and video." if is_en else "❌ စာသား နှင့် ဗီဒီယို ထည့်ပါ။"
 
-    # Row 1: Voice, Recap Style, Emotion
-    sel1, sel2, sel3 = st.columns(3)
-    with sel1:
-        selected_voice = st.selectbox(label_voice, options=voice_options)
-    with sel2:
-        selected_style = st.selectbox(label_style, options=style_options)
-    with sel3:
-        selected_emotion = st.selectbox(label_emotion, options=emotion_options)
+    # --- Voice, Recap Style, Emotion: 3-column button grid ---
 
-    # Map selected labels back to data
-    if is_en:
-        en_to_id = {label: v["id"] for v in VOICES if v["id"] in ENGLISH_VOICE_IDS for label in [ENGLISH_VOICE_LABELS.get(v["id"])] if ENGLISH_VOICE_LABELS.get(v["id"]) == selected_voice}
-        voice_id = en_to_id.get(selected_voice, next((v["id"] for v in VOICES if ENGLISH_VOICE_LABELS.get(v["id"]) == selected_voice), "v5"))
-        style_data = next((s for s in RECAP_STYLES if RECAP_STYLE_EN.get(s["name"]) == selected_style), RECAP_STYLES[0])
-        emotion_data = next((e for e in EMOTIONS if EMOTION_EN.get(e["name"]) == selected_emotion), EMOTIONS[0])
-    else:
-        voice_id = next((v["id"] for v in VOICES if MYANMAR_VOICE_LABELS.get(v["id"]) == selected_voice), "v1")
-        style_data = next((s for s in RECAP_STYLES if s["name"] == selected_style), RECAP_STYLES[0])
-        emotion_data = next((e for e in EMOTIONS if e["name"] == selected_emotion), EMOTIONS[0])
+    # Helper: get voice labels in order
+    def _get_voice_labels():
+        if is_en:
+            return [ENGLISH_VOICE_LABELS[v["id"]] for v in VOICES if v["id"] in ENGLISH_VOICE_IDS]
+        return [MYANMAR_VOICE_LABELS[v["id"]] for v in VOICES if v["id"] in MYANMAR_VOICE_IDS]
+
+    def _get_voice_ids():
+        if is_en:
+            return [v["id"] for v in VOICES if v["id"] in ENGLISH_VOICE_IDS]
+        return [v["id"] for v in VOICES if v["id"] in MYANMAR_VOICE_IDS]
+
+    voice_labels = _get_voice_labels()
+    voice_ids = _get_voice_ids()
+
+    # Initialize selections in session state with defaults
+    if "sel_voice" not in st.session_state:
+        st.session_state.sel_voice = voice_ids[0]
+    if "sel_style" not in st.session_state:
+        st.session_state.sel_style = RECAP_STYLES[0]["id"]
+    if "sel_emotion" not in st.session_state:
+        st.session_state.sel_emotion = EMOTIONS[0]["id"]
+
+    # When language changes, reset selections to defaults
+    lang_key = "en" if is_en else "my"
+    if "sel_voice_lang" not in st.session_state or st.session_state.sel_voice_lang != lang_key:
+        st.session_state.sel_voice = voice_ids[0]
+        st.session_state.sel_voice_lang = lang_key
+
+    # --- Voice Grid ---
+    st.markdown(f"**{label_voice}**")
+    voice_col_count = 3
+    voice_rows = math.ceil(len(voice_labels) / voice_col_count)
+    for row_idx in range(voice_rows):
+        cols = st.columns(voice_col_count)
+        for col_idx in range(voice_col_count):
+            idx = row_idx * voice_col_count + col_idx
+            if idx < len(voice_labels):
+                with cols[col_idx]:
+                    is_selected = (st.session_state.sel_voice == voice_ids[idx])
+                    btn_label = voice_labels[idx]
+                    btn_type = "primary" if is_selected else "secondary"
+                    if st.button(btn_label, key=f"voice_{voice_ids[idx]}", type=btn_type, use_container_width=True):
+                        st.session_state.sel_voice = voice_ids[idx]
+                        st.rerun()
+
+    # --- Recap Style Grid ---
+    st.markdown(f"**{label_style}**")
+    style_labels = [RECAP_STYLE_EN.get(s["name"], s["name"]) if is_en else s["name"] for s in RECAP_STYLES]
+    style_col_count = 3
+    style_rows = math.ceil(len(style_labels) / style_col_count)
+    for row_idx in range(style_rows):
+        cols = st.columns(style_col_count)
+        for col_idx in range(style_col_count):
+            idx = row_idx * style_col_count + col_idx
+            if idx < len(style_labels):
+                with cols[col_idx]:
+                    is_selected = (st.session_state.sel_style == RECAP_STYLES[idx]["id"])
+                    btn_label = style_labels[idx]
+                    btn_type = "primary" if is_selected else "secondary"
+                    if st.button(btn_label, key=f"style_{RECAP_STYLES[idx]['id']}", type=btn_type, use_container_width=True):
+                        st.session_state.sel_style = RECAP_STYLES[idx]["id"]
+                        st.rerun()
+
+    # --- Emotion Grid ---
+    st.markdown(f"**{label_emotion}**")
+    emotion_labels = [EMOTION_EN.get(e["name"], e["name"]) if is_en else e["name"] for e in EMOTIONS]
+    emotion_col_count = 3
+    emotion_rows = math.ceil(len(emotion_labels) / emotion_col_count)
+    for row_idx in range(emotion_rows):
+        cols = st.columns(emotion_col_count)
+        for col_idx in range(emotion_col_count):
+            idx = row_idx * emotion_col_count + col_idx
+            if idx < len(emotion_labels):
+                with cols[col_idx]:
+                    is_selected = (st.session_state.sel_emotion == EMOTIONS[idx]["id"])
+                    btn_label = emotion_labels[idx]
+                    btn_type = "primary" if is_selected else "secondary"
+                    if st.button(btn_label, key=f"emotion_{EMOTIONS[idx]['id']}", type=btn_type, use_container_width=True):
+                        st.session_state.sel_emotion = EMOTIONS[idx]["id"]
+                        st.rerun()
+
+    # Map selected to voice_id, style_data, emotion_data
+    voice_id = st.session_state.sel_voice
+    style_data = next((s for s in RECAP_STYLES if s["id"] == st.session_state.sel_style), RECAP_STYLES[0])
+    emotion_data = next((e for e in EMOTIONS if e["id"] == st.session_state.sel_emotion), EMOTIONS[0])
 
     preset_speed = style_data["speed"] + emotion_data["s"]
     preset_pitch = style_data["pitch"] + emotion_data["p"]
